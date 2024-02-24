@@ -131,5 +131,4 @@ object Service {
         }
     }
   }
-}git config --global user.email "chapchaimax@gmail.com"
-git config --global user.name "Chapchai Maksym"
+}
