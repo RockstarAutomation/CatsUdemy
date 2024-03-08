@@ -15,7 +15,7 @@ object IoMonad extends IOApp {
 
   def echoForever: IO[Nothing] = {
     import Console._
-    IO.delay()
+//    IO.delay()
     readLine("enter ur name:").flatMap(str => putStrLn(str)).foreverM
   }
 

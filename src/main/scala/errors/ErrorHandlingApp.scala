@@ -1,58 +1,100 @@
 package errors
 
-import cats.data.Validated.Invalid
-import cats.data.{RWS, Validated, ValidatedNec}
-import cats.effect.IO.{IOCont, Uncancelable}
+import cats.data.Validated.{Invalid, Valid}
+import cats.data.{Validated, ValidatedNec}
 import cats.effect.{ExitCode, IO, IOApp}
+import cats.implicits.{catsSyntaxApplicativeId, catsSyntaxEitherId, catsSyntaxFoldableOps0, catsSyntaxTuple3Semigroupal, toFlatMapOps, toTraverseOps}
 import errors.Controller.{Request, postTransfer}
-import errors.Models.{Account, maxBalance}
-import errors.Service.transfer
-import errors.Validation.{validateAccNumber, validateDouble}
+import errors.Models.Account
+
+import java.io.{FileInputStream, FileNotFoundException}
+import scala.io.Source
+import scala.util.control.NonFatal
 
 object Controller {
-  case class Request(fromAcc: String, toAcc: String, amount: String)
+  case class Request(fromAccount: String, toAccount: String, amount: String)
 
   case class Response(status: Int, body: String)
 
+  import Validation._
+
+  // Validate the from account number, the to account number and the amount
+  // If validations fail, return a Response with code 400 and some error message
+  // Otherwise, call transfer
+  // If there is any domain error, return a Response with code 400 and some error message
+  // If there is any other error, return a Response with code 500 and Internal Server Error message
+  // Otherwise, return a Response with code 200 and Transfer successfully executed
   def postTransfer(request: Request): IO[Response] = {
-    import Validation._
+    val response = (validateAccNumber(request.fromAccount),
+      validateAccNumber(request.toAccount),
+      validateDouble(request.amount)).tupled match {
+      case Valid((fromAccountNumber, toAccountNumber, amount)) =>
+        Service.transfer(fromAccountNumber, toAccountNumber, amount).map {
+          case Right(()) =>
+            Response(200, "Transfer successfully executed")
 
-    if (validateAccNumber(request.fromAcc) && validateAccNumber(request.toAcc) && validateDouble(request.amount)) {
-      import Service.transfer
-
-      val res = transfer(request.fromAcc, request.toAcc, request.amount)
-        .map {
-          error =>
-            error match
-              case Left(error) => Response(400, error.toString)
-              case Right(_) => Response(200, "Transaction completed")
+          case Left(error) =>
+            Response(400, error.toString)
         }
-      res.pure[IO]
-    } else {
-      Response(400, "There is a problem with accounts or amount").pure[IO]
-    }
-  }
 
-  def postTransfer2(request: Request): IO[Response] = {
-    val res = (validateAccNumber(request.fromAcc), validateAccNumber(request.toAcc), validateDouble(request.amount)).tupled match {
-      case Valid((fromAcc, toAcc, num)) => transfer(fromAcc, toAcc, num).map {
-        case Left(_) => Response(200, "Transaction completed")
-        case Right(error) => Response(400, error.toString)
-      }
-      case Invalid(error) => Response(400, error.toString).pure[IO]
+      case Invalid(errors) =>
+        Response(400, errors.mkString_(", ")).pure[IO]
     }
-
-    res.handleErrorWith(_ => Response(500, "Server error")).pure[IO]
+    response.handleErrorWith {
+      case NonFatal(e) => Response(500, "Internal server error").pure[IO]
+    }
   }
 }
 
 object ErrorHandlingApp extends IOApp {
 
   override def run(args: List[String]) = {
-    val request = Request("12345", "56789", "2000")
-    postTransfer(request)
-      .flatTap(bla => IO.println(bla))
-      .as(ExitCode.Success)
+    //    val request = Request("12345", "56789", "2000")
+    //    postTransfer(request)
+    //      .flatTap(bla => IO.println(bla))
+    //      .as(ExitCode.Success)
+
+    val bla = IO.blocking(new FileInputStream(args.head))
+      .bracket {
+        fis =>
+          IO.blocking(
+            Iterator
+              .continually(fis.read)
+              .takeWhile(_ != -1)
+              .map(_.toByte)
+              .toArray
+          )
+      } {
+        fis => IO.blocking(fis.close())
+      }
+    bla.as(ExitCode.Success)
+  }
+  def loadFile(filename: String): IO[Either[DomainError, String]] = {
+    def loadFileContents(filename: String): IO[Array[Byte]] = {
+      IO.blocking(new FileInputStream(filename))
+        .bracket { fis =>
+          IO.blocking(
+            Iterator
+              .continually(fis.read)
+              .takeWhile(_ != -1)
+              .map(_.toByte)
+              .toArray
+          )
+        } { fis =>
+          IO.blocking(fis.close())
+        }
+    }
+
+    /* 1 */
+    // Implement a load file function that loads all the contents of a file into a String
+    // If the file does not exist, capture that with the domain error TextFileNotFound
+          loadFileContents(filename).map { bytes =>
+            new String(bytes).asRight[DomainError]
+          }.handleErrorWith {
+            case _: FileNotFoundException => TextFileNotFound(filename).asLeft[String].pure[IO]
+            case t: Throwable => IO.raiseError(t)
+          }
+    IO.raiseError(new StackOverflowError("boom"))
   }
 }
 
@@ -70,11 +112,14 @@ object Validation {
 
 trait DomainError
 
+case class TextFileNotFound(filename: String) extends DomainError
+
+
 case class InsufficientBalanceError(actualBalance: Double, amountToWithdraw: Double) extends DomainError
 
 case class MaximumBalanceExceededError(maxDeposit: Double, balance: Double) extends DomainError
 
-case class AccountNotFoundError(number: Double) extends DomainError
+case class AccountNotFoundError(number: String) extends DomainError
 
 object Models {
   val maxBalance = 5000
@@ -106,7 +151,7 @@ object Repository {
 
   def findAccountByNumber(number: String): IO[Option[Account]] = data.get(number).pure[IO]
 
-  def saveAccount(account: Account): IO[Unit] = data = data + (account.number -> account)
+  def saveAccount(account: Account): IO[Unit] = (data = data + (account.number -> account)).pure[IO]
 }
 
 object Service {

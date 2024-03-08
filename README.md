@@ -6,7 +6,13 @@ Referential transparency is a property of a function that allows it to be replac
 
 ### Type class
 
-A type class is a type system construct that supports ad hoc polymorphism. This is achieved by adding constraints to type variables in parametrically polymorphic types. Such a constraint typically involves a type class T and a type variable a, and means that a can only be instantiated to a type whose members support the overloaded operations associated with T
+- A type class is a type system construct that supports ad hoc polymorphism. This is achieved by adding constraints to type variables in parametrically polymorphic types. Such a 
+constraint typically involves a type class T and a type variable a, and means that a can only be instantiated to a type whose members support the overloaded operations associated with T
+- implicit methods with non-implicit parameters form a different Scala pa􏰁ern called an implicit conversion.
+
+#### Type Class Interfaces
+A type class interface is any func􏰀onality we expose to users. Interfaces are generic methods that accept instances of the type class as implicit parameters.
+There are two common ways of specifying an interface: Interface Objects and Interface Syntax.
 
 ### Type Alias
 
