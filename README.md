@@ -29,5 +29,10 @@ class Baz[A]  // An invariant class (only A type allowed to be here)
 
 * thunk - a function that not yet executed
 
-### Error Handling
+### Concurrency
+
+* IO does not support parallelism, however, it does contain class Par which is designed for such computation
+* The execution order of parallel tasks is non-deterministic
+* The Parallel typeclass from the Cats library (not Cats Effect) captures the concept of translating between two related data types.
+* 
 
