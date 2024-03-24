@@ -40,6 +40,7 @@ object ConcurrencyAndParallelismApp extends IOApp {
 
     // parMapN testing
     val n = 3
+
     //    (ImageService.fetchFromHttp(n), ImageService.fetchFromDb(n))
     //      .parMapN { case (httpsImages, dbImages) => httpsImages ++ dbImages }
     //      .flatTap(IO.println)
